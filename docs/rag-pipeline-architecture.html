@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Pipeline — Architecture & Flow Diagram</title>
+    <style>
+        :root {
+            --bg: #0f1419;
+            --surface: #1a2332;
+            --surface-2: #243044;
+            --border: #2d4a6f;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --accent: #58a6ff;
+            --accent-2: #7ee787;
+            --accent-3: #d2a8ff;
+            --accent-4: #ffa657;
+            --accent-5: #ff7b72;
+            --shadow: rgba(0, 0, 0, 0.4);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            padding: 3rem 2rem;
+            margin-bottom: 3rem;
+            background: linear-gradient(135deg, var(--surface) 0%, var(--surface-2) 100%);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 8px 32px var(--shadow);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--accent-3));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        section {
+            margin-bottom: 3rem;
+        }
+
+        h2 {
+            font-size: 1.6rem;
+            color: var(--accent);
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid var(--border);
+        }
+
+        h3 {
+            font-size: 1.2rem;
+            color: var(--accent-3);
+            margin: 1.5rem 0 0.75rem;
+        }
+
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 16px var(--shadow);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+
+        .flow-diagram {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            overflow-x: auto;
+        }
+
+        .flow-step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: var(--surface);
+            border-radius: 8px;
+            border-left: 4px solid var(--accent);
+        }
+
+        .flow-step.retrieval { border-left-color: var(--accent-2); }
+        .flow-step.generation { border-left-color: var(--accent-3); }
+        .flow-step.storage { border-left-color: var(--accent-4); }
+
+        .flow-step-num {
+            min-width: 32px;
+            height: 32px;
+            background: var(--accent);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.85rem;
+            margin-right: 1rem;
+            color: var(--bg);
+        }
+
+        .flow-step.retrieval .flow-step-num { background: var(--accent-2); }
+        .flow-step.generation .flow-step-num { background: var(--accent-3); }
+        .flow-step.storage .flow-step-num { background: var(--accent-4); }
+
+        .flow-step-content h4 {
+            font-size: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .flow-step-content p {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .flow-arrow {
+            text-align: center;
+            color: var(--text-muted);
+            font-size: 1.5rem;
+            margin: 0.5rem 0;
+        }
+
+        .file-badge {
+            display: inline-block;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.15rem 0.5rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.8rem;
+            color: var(--accent-4);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+
+        thead { background: var(--surface-2); }
+
+        th, td {
+            padding: 0.75rem 1rem;
+            text-align: left;
+            border: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--accent);
+        }
+
+        td code {
+            background: var(--surface-2);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-2);
+        }
+
+        .architecture-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            margin: 1.5rem 0;
+        }
+
+        @media (max-width: 768px) {
+            .architecture-grid { grid-template-columns: 1fr; }
+            header h1 { font-size: 1.8rem; }
+            body { padding: 1rem; }
+        }
+
+        .provider-card {
+            padding: 1.25rem;
+            border-radius: 10px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+        }
+
+        .provider-card h4 {
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .provider-card ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .provider-card li {
+            padding: 0.3rem 0;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .provider-card li::before {
+            content: "→ ";
+            color: var(--accent);
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .tag-blue { background: rgba(88, 166, 255, 0.15); color: var(--accent); }
+        .tag-green { background: rgba(126, 231, 135, 0.15); color: var(--accent-2); }
+        .tag-purple { background: rgba(210, 168, 255, 0.15); color: var(--accent-3); }
+        .tag-orange { background: rgba(255, 166, 87, 0.15); color: var(--accent-4); }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+            margin: 1rem 0;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .config-item .label { color: var(--text-muted); font-size: 0.85rem; }
+        .config-item .value { font-weight: 600; font-size: 0.9rem; color: var(--accent-2); }
+
+        .cmd {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.85rem;
+            color: var(--accent-2);
+            margin: 0.75rem 0;
+            overflow-x: auto;
+        }
+
+        .cmd::before {
+            content: "$ ";
+            color: var(--text-muted);
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, var(--border), transparent);
+            margin: 2rem 0;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>RAG Pipeline Architecture</h1>
+    <p>How this RAG pipeline works end-to-end — methods, data flow, and components</p>
+</header>
+
+<!-- High-Level Architecture -->
+<section>
+    <h2>🏗️ High-Level Architecture</h2>
+    <div class="card">
+        <p style="margin-bottom: 1rem;">The pipeline has a single entry point (<code>main.py</code>) that parses CLI args, validates environment variables, and dispatches to the <code>RAGPipeline</code> orchestrator class.</p>
+        
+        <div class="architecture-grid">
+            <div class="provider-card">
+                <h4><span class="tag tag-blue">GitHub Provider</span></h4>
+                <ul>
+                    <li>Single <code>GITHUB_TOKEN</code></li>
+                    <li>Embeddings: <code>text-embedding-3-small</code> via GitHub Models</li>
+                    <li>Generation: <code>gpt-4o</code> via GitHub Models</li>
+                    <li>Endpoint: models.inference.ai.azure.com</li>
+                </ul>
+            </div>
+            <div class="provider-card">
+                <h4><span class="tag tag-purple">Default Provider</span></h4>
+                <ul>
+                    <li><code>OPENAI_API_KEY</code> + <code>ANTHROPIC_API_KEY</code></li>
+                    <li>Embeddings: <code>text-embedding-3-small</code> via OpenAI</li>
+                    <li>Generation: <code>claude-sonnet-4-6</code> via Anthropic</li>
+                    <li>Direct API calls</li>
+                </ul>
+            </div>
+        </div>
+
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 1rem;">Both providers share the same <strong>ChromaDB</strong> persistent vector store at <code>./chroma_db</code> with cosine similarity.</p>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Flow 1: Ingest -->
+<section>
+    <h2>📥 Flow 1: Ingest Documents</h2>
+    <div class="cmd">python main.py --provider github ingest docs/</div>
+    
+    <div class="flow-diagram">
+        <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div class="flow-step-content">
+                <h4>File Discovery</h4>
+                <p><span class="file-badge">src/pipeline.py</span> → <code>RAGPipeline.ingest(path)</code><br>
+                Recursively scans directory for <code>.pdf</code>, <code>.md</code>, <code>.txt</code>, <code>.markdown</code> files</p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+            <div class="flow-step-num">2</div>
+            <div class="flow-step-content">
+                <h4>Document Loading</h4>
+                <p><span class="file-badge">src/ingestion.py</span> → <code>load_pdf()</code> or <code>load_text_file()</code><br>
+                PDFs: extracts text per page via <strong>pypdf</strong> · Text files: reads as single page</p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+            <div class="flow-step-num">3</div>
+            <div class="flow-step-content">
+                <h4>Chunking</h4>
+                <p><span class="file-badge">src/ingestion.py</span> → <code>chunk_text(text, size=1000, overlap=200)</code><br>
+                Sliding window with smart boundary detection (prefers <code>\n</code> or <code>". "</code> breaks)</p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step storage">
+            <div class="flow-step-num">4</div>
+            <div class="flow-step-content">
+                <h4>Embedding</h4>
+                <p><span class="file-badge">src/ingestion.py</span> → <code>embed_texts(chunks, client)</code><br>
+                Calls <strong>text-embedding-3-small</strong> API in batches of 100 chunks</p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step storage">
+            <div class="flow-step-num">5</div>
+            <div class="flow-step-content">
+                <h4>Store in Vector DB</h4>
+                <p><span class="file-badge">src/ingestion.py</span> → <code>collection.upsert()</code><br>
+                ChromaDB upsert in batches of 500 · ID = MD5(<code>source:page:chunk_index</code>) · Metadata: {source, page, chunk_index}</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Flow 2: Query -->
+<section>
+    <h2>🔍 Flow 2: Query</h2>
+    <div class="cmd">python main.py --provider github query "What is harness engineering?"</div>
+
+    <div class="flow-diagram">
+        <div class="flow-step">
+            <div class="flow-step-num">1</div>
+            <div class="flow-step-content">
+                <h4>Entry</h4>
+                <p><span class="file-badge">src/pipeline.py</span> → <code>RAGPipeline.query(question, top_k=5)</code></p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step retrieval">
+            <div class="flow-step-num">2</div>
+            <div class="flow-step-content">
+                <h4>Embed Query</h4>
+                <p><span class="file-badge">src/retrieval.py</span> → <code>openai_client.embeddings.create()</code><br>
+                Converts the question into a vector using <strong>text-embedding-3-small</strong></p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step retrieval">
+            <div class="flow-step-num">3</div>
+            <div class="flow-step-content">
+                <h4>Vector Search</h4>
+                <p><span class="file-badge">src/retrieval.py</span> → <code>collection.query(query_embeddings, n_results=top_k)</code><br>
+                ChromaDB cosine similarity search · Returns top-K hits with text, metadata, and scores</p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step generation">
+            <div class="flow-step-num">4</div>
+            <div class="flow-step-content">
+                <h4>Build Context</h4>
+                <p><span class="file-badge">src/generation.py</span> → <code>_build_context(hits)</code><br>
+                Formats chunks as: <code>[1] source (page N)\ntext...\n---\n[2] ...</code></p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step generation">
+            <div class="flow-step-num">5</div>
+            <div class="flow-step-content">
+                <h4>LLM Generation</h4>
+                <p><span class="file-badge">src/generation.py</span> → <code>generate_answer_compat()</code> or <code>generate_answer()</code><br>
+                System prompt: <em>"Answer based strictly on provided context. Cite sources."</em><br>
+                GitHub → <strong>GPT-4o</strong> · Default → <strong>Claude Sonnet</strong></p>
+            </div>
+        </div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-step">
+            <div class="flow-step-num">6</div>
+            <div class="flow-step-content">
+                <h4>Return Result</h4>
+                <p>Returns <code>{"answer": "...", "sources": [hits]}</code></p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Flow 3: Chat -->
+<section>
+    <h2>💬 Flow 3: Interactive Chat</h2>
+    <div class="cmd">python main.py --provider github chat</div>
+    <div class="card">
+        <p>Same as <strong>Flow 2 (Query)</strong> but wrapped in a <code>while True</code> loop:</p>
+        <ol style="margin-top: 0.75rem; padding-left: 1.5rem; color: var(--text-muted);">
+            <li>Read user input from stdin</li>
+            <li>Call <code>pipeline.query(question)</code></li>
+            <li>Print the answer</li>
+            <li>Repeat until user types <code>quit</code>, <code>exit</code>, or <code>q</code></li>
+        </ol>
+    </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- File Map -->
+<section>
+    <h2>📁 File Map & Methods</h2>
+    <table>
+        <thead>
+            <tr><th>File</th><th>Method</th><th>Purpose</th></tr>
+        </thead>
+        <tbody>
+            <tr><td rowspan="6"><code>main.py</code></td><td><code>_check_env(provider)</code></td><td>Validates required env vars per provider</td></tr>
+            <tr><td><code>_pipeline(provider)</code></td><td>Creates RAGPipeline instance</td></tr>
+            <tr><td><code>cmd_ingest(args)</code></td><td>Calls pipeline.ingest()</td></tr>
+            <tr><td><code>cmd_query(args)</code></td><td>Calls pipeline.query(), prints answer</td></tr>
+            <tr><td><code>cmd_chat(args)</code></td><td>Interactive loop calling pipeline.query()</td></tr>
+            <tr><td><code>cmd_stats(args)</code></td><td>Calls pipeline.stats()</td></tr>
+            <tr><td rowspan="4"><code>src/pipeline.py</code></td><td><code>RAGPipeline.__init__()</code></td><td>Sets up clients + ChromaDB</td></tr>
+            <tr><td><code>ingest(path)</code></td><td>File discovery → ingest_file() per file</td></tr>
+            <tr><td><code>query(question)</code></td><td>search() → _generate() → answer</td></tr>
+            <tr><td><code>stats()</code></td><td>Returns chunk count from ChromaDB</td></tr>
+            <tr><td rowspan="5"><code>src/ingestion.py</code></td><td><code>load_pdf(path)</code></td><td>Extracts text per page using pypdf</td></tr>
+            <tr><td><code>load_text_file(path)</code></td><td>Reads entire file as plain text</td></tr>
+            <tr><td><code>chunk_text(text)</code></td><td>Sliding window chunker (1000 chars, 200 overlap)</td></tr>
+            <tr><td><code>embed_texts(texts)</code></td><td>OpenAI text-embedding-3-small (batched)</td></tr>
+            <tr><td><code>ingest_file(path)</code></td><td>Orchestrates: load → chunk → embed → upsert</td></tr>
+            <tr><td><code>src/retrieval.py</code></td><td><code>search(query)</code></td><td>Embed query → ChromaDB cosine search → ranked hits</td></tr>
+            <tr><td rowspan="3"><code>src/generation.py</code></td><td><code>_build_context(hits)</code></td><td>Formats chunks into numbered context</td></tr>
+            <tr><td><code>generate_answer()</code></td><td>Anthropic Claude API generation</td></tr>
+            <tr><td><code>generate_answer_compat()</code></td><td>OpenAI-compatible API (GitHub Models)</td></tr>
+        </tbody>
+    </table>
+</section>
+
+<div class="divider"></div>
+
+<!-- Configuration -->
+<section>
+    <h2>⚙️ Configuration</h2>
+    <div class="config-grid">
+        <div class="config-item"><span class="label">Chunk Size</span><span class="value">1000 chars</span></div>
+        <div class="config-item"><span class="label">Chunk Overlap</span><span class="value">200 chars</span></div>
+        <div class="config-item"><span class="label">Embedding Model</span><span class="value">text-embedding-3-small</span></div>
+        <div class="config-item"><span class="label">Chat Model (GitHub)</span><span class="value">gpt-4o</span></div>
+        <div class="config-item"><span class="label">Chat Model (Default)</span><span class="value">claude-sonnet-4-6</span></div>
+        <div class="config-item"><span class="label">Max Gen Tokens</span><span class="value">1024</span></div>
+        <div class="config-item"><span class="label">Vector DB Path</span><span class="value">./chroma_db</span></div>
+        <div class="config-item"><span class="label">Collection</span><span class="value">documents</span></div>
+        <div class="config-item"><span class="label">Similarity Metric</span><span class="value">cosine</span></div>
+        <div class="config-item"><span class="label">Default Top-K</span><span class="value">5</span></div>
+    </div>
+</section>
+
+<footer style="text-align: center; padding: 2rem 0; color: var(--text-muted); font-size: 0.85rem;">
+    RAG Pipeline Architecture · Generated from project source
+</footer>
+
+</body>
+</html>

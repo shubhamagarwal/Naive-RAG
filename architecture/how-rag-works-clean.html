@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>How RAG Works — Clean Edition</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@300;400;500;600;700&family=IBM+Plex+Serif:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bp-bg: #0C1B33;
+    --bp-bg-deep: #081428;
+    --bp-blue: #1E3A5F;
+    --bp-signal: #3B82F6;
+    --bp-signal-pale: #93C5FD;
+    --bp-steel: #94A3B8;
+    --bp-paper: #F8FAFC;
+    --bp-caution: #FBBF24;
+    --bp-grid: rgba(59, 130, 246, 0.08);
+    --bp-grid-strong: rgba(59, 130, 246, 0.15);
+  }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bp-bg-deep);
+    color: var(--bp-paper);
+    padding: 40px 20px;
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+  }
+
+  .canvas {
+    width: 1080px;
+    max-width: 100%;
+    aspect-ratio: 4 / 5;
+    background: var(--bp-bg);
+    border-radius: 4px;
+    padding: 70px 60px 60px;
+    position: relative;
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(59,130,246,0.2),
+      0 30px 80px rgba(0,0,0,0.6);
+  }
+
+  .canvas::before {
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(var(--bp-grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bp-grid) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+  }
+  .canvas::after {
+    content: ''; position: absolute; inset: 0;
+    background-image:
+      linear-gradient(var(--bp-grid-strong) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bp-grid-strong) 1px, transparent 1px);
+    background-size: 120px 120px;
+    pointer-events: none;
+  }
+
+  .corner {
+    position: absolute; width: 36px; height: 36px;
+    border: 1px solid var(--bp-signal);
+    pointer-events: none; z-index: 3;
+  }
+  .corner.tl { top: 24px; left: 24px; border-right: none; border-bottom: none; }
+  .corner.tr { top: 24px; right: 24px; border-left: none; border-bottom: none; }
+  .corner.bl { bottom: 24px; left: 24px; border-right: none; border-top: none; }
+  .corner.br { bottom: 24px; right: 24px; border-left: none; border-top: none; }
+
+  .content { position: relative; z-index: 2; height: 100%; display: flex; flex-direction: column; }
+
+  /* Header — minimal */
+  .header {
+    border-bottom: 1px dashed rgba(59,130,246,0.4);
+    padding-bottom: 28px;
+    margin-bottom: 50px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .hashtags {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--bp-signal-pale);
+    letter-spacing: 2px;
+    margin-bottom: 18px;
+    text-transform: uppercase;
+  }
+  .hashtags span { color: var(--bp-caution); }
+  .title {
+    font-family: 'IBM Plex Serif', serif;
+    font-size: 68px;
+    font-weight: 600;
+    color: var(--bp-paper);
+    letter-spacing: -1.5px;
+    line-height: 1;
+  }
+  .title em {
+    font-style: italic;
+    color: var(--bp-caution);
+    font-weight: 500;
+  }
+  .subtitle {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--bp-steel);
+    margin-top: 18px;
+    letter-spacing: 1.5px;
+  }
+  .blueprint-stamp {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--bp-steel);
+    line-height: 1.8;
+  }
+  .blueprint-stamp .stamp-label {
+    color: var(--bp-signal-pale);
+    letter-spacing: 2px;
+    font-weight: 600;
+  }
+  .blueprint-stamp .stamp-value { color: var(--bp-paper); }
+
+  /* MAIN — single vertical flow */
+  .main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0 20px;
+  }
+
+  .flow-box {
+    width: 100%;
+    max-width: 580px;
+    padding: 24px 30px;
+    background: rgba(59, 130, 246, 0.08);
+    border: 1px dashed var(--bp-signal);
+    border-radius: 4px;
+    position: relative;
+  }
+  .flow-box.emphasis {
+    background: rgba(251, 191, 36, 0.1);
+    border-color: var(--bp-caution);
+  }
+  .flow-box.result {
+    background: rgba(248, 250, 252, 0.06);
+    border-color: var(--bp-paper);
+  }
+
+  .box-num {
+    position: absolute;
+    top: -10px;
+    left: 24px;
+    background: var(--bp-bg);
+    padding: 0 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--bp-caution);
+    letter-spacing: 2px;
+    font-weight: 700;
+  }
+
+  .box-title {
+    font-family: 'IBM Plex Serif', serif;
+    font-size: 24px;
+    font-weight: 600;
+    color: var(--bp-paper);
+    margin-bottom: 4px;
+    letter-spacing: -0.3px;
+  }
+  .box-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--bp-signal-pale);
+    letter-spacing: 0.3px;
+  }
+
+  .arrow {
+    width: 2px;
+    height: 40px;
+    background:
+      linear-gradient(to bottom,
+        var(--bp-caution) 0%,
+        var(--bp-caution) 50%,
+        transparent 50%,
+        transparent 100%);
+    background-size: 2px 8px;
+    position: relative;
+    margin: 0;
+  }
+  .arrow::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid var(--bp-caution);
+  }
+
+  /* Signature */
+  .signature {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px dashed rgba(59,130,246,0.3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--bp-steel);
+    letter-spacing: 1.2px;
+  }
+  .signature .accent { color: var(--bp-caution); }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+
+  <div class="content">
+
+    <!-- HEADER -->
+    <div class="header">
+      <div class="header-left">
+        <div class="hashtags"><span>#</span>GenAI <span>#</span>RAG <span>#</span>SystemDesign</div>
+        <div class="title">How <em>RAG</em> Works</div>
+        <div class="subtitle">FIVE STEPS · ONE GROUNDED ANSWER</div>
+      </div>
+      <div class="blueprint-stamp">
+        <div><span class="stamp-label">SHEET</span> <span class="stamp-value">01 / 01</span></div>
+        <div><span class="stamp-label">REV.</span> <span class="stamp-value">2026.05</span></div>
+        <div><span class="stamp-label">SCALE</span> <span class="stamp-value">1:1</span></div>
+      </div>
+    </div>
+
+    <!-- MAIN FLOW -->
+    <div class="main">
+
+      <div class="flow-box">
+        <div class="box-num">[ 01 ]</div>
+        <div class="box-title">User asks a question</div>
+        <div class="box-sub">→ "Tell me about [topic]..."</div>
+      </div>
+
+      <div class="arrow"></div>
+
+      <div class="flow-box">
+        <div class="box-num">[ 02 ]</div>
+        <div class="box-title">Search the knowledge base</div>
+        <div class="box-sub">→ vector similarity · top-k chunks</div>
+      </div>
+
+      <div class="arrow"></div>
+
+      <div class="flow-box emphasis">
+        <div class="box-num">[ 03 ]</div>
+        <div class="box-title">Augment the prompt</div>
+        <div class="box-sub">→ question + retrieved context</div>
+      </div>
+
+      <div class="arrow"></div>
+
+      <div class="flow-box">
+        <div class="box-num">[ 04 ]</div>
+        <div class="box-title">LLM generates an answer</div>
+        <div class="box-sub">→ Claude · GPT · Gemini</div>
+      </div>
+
+      <div class="arrow"></div>
+
+      <div class="flow-box result">
+        <div class="box-num">[ 05 ]</div>
+        <div class="box-title">Grounded response</div>
+        <div class="box-sub">→ accurate · cited · low hallucination</div>
+      </div>
+
+    </div>
+
+    <!-- SIGNATURE -->
+    <div class="signature">
+      <div class="left">DWG. NO. <span class="accent">RAG-CLEAN-001</span> · ARCHITECTURAL REFERENCE</div>
+      <div class="right">SOLUTION ARCHITECT · 2026</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

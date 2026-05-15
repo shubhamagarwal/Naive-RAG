@@ -1,0 +1,58 @@
+%%{init: {
+  'theme': 'base',
+  'themeVariables': {
+    'background': '#0C1B33',
+    'primaryColor': '#1E3A5F',
+    'primaryTextColor': '#F8FAFC',
+    'primaryBorderColor': '#3B82F6',
+    'lineColor': '#FBBF24',
+    'secondaryColor': '#1E3A5F',
+    'tertiaryColor': '#0C1B33',
+    'fontFamily': 'JetBrains Mono, monospace',
+    'fontSize': '14px'
+  },
+  'flowchart': {
+    'curve': 'basis',
+    'padding': 20
+  }
+}}%%
+
+flowchart TD
+    subgraph OFFLINE["⚙️ OFFLINE · INDEXING PIPELINE"]
+        KB["📚 KNOWLEDGE BASE<br/><i>PDFs · Docs · Wiki · APIs</i>"]
+        CHUNK["✂️ CHUNK + EMBED<br/><i>split → tokenize → embed</i>"]
+        KB ==>|"ingest"| CHUNK
+    end
+
+    subgraph RUNTIME["⚡ RUNTIME · RETRIEVAL FLOW"]
+        Q["👤 [ 01 ] USER QUERY<br/><i>'Tell me about X...'</i>"]
+        E["🔢 [ 02 ] EMBED QUERY<br/><i>vector [0.21, 0.84...]</i>"]
+        S["🔍 [ 03 ] SIMILARITY SEARCH<br/><i>top-k retrieval</i>"]
+        A["🧩 [ 04 ] AUGMENT PROMPT<br/><i>query + retrieved context</i>"]
+        L["🤖 [ 05 ] LLM<br/><i>Claude · GPT · Gemini</i>"]
+        R["✅ [ 06 ] GROUNDED RESPONSE<br/><i>factual · cited · low hallucination</i>"]
+
+        Q ==> E
+        E ==> S
+        S ==> A
+        A ==> L
+        L ==> R
+    end
+
+    VDB[("🗄️ VECTOR DATABASE<br/><i>Pinecone · Weaviate · FAISS</i>")]
+
+    CHUNK ==>|"index"| VDB
+    S <==>|"query / match"| VDB
+
+    classDef defaultBox fill:#1E3A5F,stroke:#3B82F6,stroke-width:1px,stroke-dasharray:4 3,color:#F8FAFC
+    classDef emphasisBox fill:#3D2F0A,stroke:#FBBF24,stroke-width:1.5px,stroke-dasharray:4 3,color:#F8FAFC
+    classDef resultBox fill:#1E3A5F,stroke:#F8FAFC,stroke-width:1.5px,stroke-dasharray:4 3,color:#F8FAFC
+    classDef dbBox fill:#1E3A5F,stroke:#F8FAFC,stroke-width:1px,stroke-dasharray:2 2,color:#F8FAFC
+
+    class Q,E,S,L,KB,CHUNK defaultBox
+    class A emphasisBox
+    class R resultBox
+    class VDB dbBox
+
+    style OFFLINE fill:#0C1B33,stroke:#94A3B8,stroke-width:1px,stroke-dasharray:2 4,color:#94A3B8
+    style RUNTIME fill:#0C1B33,stroke:#94A3B8,stroke-width:1px,stroke-dasharray:2 4,color:#94A3B8
