@@ -32,6 +32,14 @@ User Question
   Answer + Sources
 ```
 
+### Flow 1
+
+![Flow 1](docs/Flow-1.png)
+
+### Flow 2
+
+![Flow 2](docs/Flow-2.png)
+
 ---
 
 ## Setup (Step by Step)
